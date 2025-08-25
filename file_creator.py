@@ -13,7 +13,7 @@ filenames = [
     "Resumen Final.csv",
     "ventas_MARZO.csv",
     "Reporte_Anual_2024.csv",
-    "pobreza-datos.csv"
+    "pobreza-datos.csv",
 ]
 
 for filename in filenames:

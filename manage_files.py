@@ -1,5 +1,6 @@
 from pathlib import Path
 import argparse
+from datetime import datetime
 
 def build_parser():
     p = argparse.ArgumentParser(
@@ -69,8 +70,48 @@ def cmd_rename(args):
 
 def cmd_move(args):
     # obtener fecha + crear carpeta destino + mover archivo.
+    src_path = args.src.resolve()
+    dst_dir = args.dest.resolve()
+
+    errores = 0
+    movidos = 0
+    saltados = 0
+
+    if dst_dir.is_relative_to(src_path):
+        raise ValueError("dst no puede estar dentro de src")
+        
+    for f in sorted(src_path.glob(args.pattern)):
+        if f.is_file():
+            try:
+                st = f.stat()
+                match args.by:
+                    case 'mtime':
+                        dt = datetime.fromtimestamp(st.st_mtime)
+                    case 'ctime':
+                        dt = datetime.fromtimestamp(st.st_ctime)
+                    case _:
+                        dt = datetime.fromtimestamp(st.st_mtime)
+                subdir = dt.strftime("%Y-%m")
+                final_dir = dst_dir / subdir
+                final_dir.mkdir(parents=True, exist_ok=True)
+                filename = unique_name(final_dir, f.name)
+                dst_path = final_dir / filename
+                if not f.resolve() == dst_path.resolve():
+                    f.rename(dst_path)
+                    movidos += 1
+                else:
+                    saltados += 1
+        
+            except Exception as e:
+                print(f'error: {str(e)}')
+                errores += 1
+        else:
+            saltados += 1
+    print(f'movidos={movidos}, saltados={saltados} errores={errores}')
+
+
+
     
-    ...
 
 def cmd_merge():
     # abrir CSVs + concatenar + agregar columna + guardar master.
@@ -87,7 +128,7 @@ def main():
     if args.cmd == "rename":
         cmd_rename(args)
     elif args.cmd == "move":
-        ...
+        cmd_move(args)
     elif args.cmd == "merge":
         ...
     elif args.cmd == 'ls':

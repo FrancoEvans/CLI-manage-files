@@ -29,7 +29,7 @@ p2 = Path('automation/prueba_2')
 p2.mkdir(exist_ok=True)
 
 print(file.parent)
-file.rename(p2 / file.name)
+file = file.rename(p2 / file.name)
 print(file.resolve())
 
 
@@ -43,3 +43,4 @@ if file.exists():
     print("Creación:", datetime.datetime.fromtimestamp(info.st_ctime))
     print("Último acceso:", datetime.datetime.fromtimestamp(info.st_atime))
     print("Última modificación:", datetime.datetime.fromtimestamp(info.st_mtime))
+
