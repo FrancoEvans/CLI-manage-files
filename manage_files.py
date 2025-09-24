@@ -1,6 +1,7 @@
 from pathlib import Path
 import argparse
 from datetime import datetime
+import pandas as pd
 
 def build_parser():
     p = argparse.ArgumentParser(
@@ -113,9 +114,52 @@ def cmd_move(args):
 
     
 
-def cmd_merge():
+def cmd_merge(args):
     # abrir CSVs + concatenar + agregar columna + guardar master.
-    ...
+    src_path = args.src.resolve()
+    out_dir = args.out.resolve()
+    date = datetime.now()
+    master_csv = out_dir / f'master_{date.strftime("%Y-%m-%d")}.csv'
+
+    dataframes = []
+
+    if not src_path.exists():
+        print(f'no se encontro la ruta: {src_path}')
+        return
+
+    for i, f in enumerate(sorted(src_path.glob(args.pattern))):
+        if f.suffix == '.csv':
+            df = pd.read_csv(f)
+
+            df['_source_file'] = f.name
+            df['_at'] = date.strftime("%Y-%m-%dT%H:%M")
+            
+            dataframes.append(df)
+
+            print(f'archivo {i+1} ready > {f.name}')
+
+    if not dataframes:
+        print("no se encontraron csv's")
+        return
+    
+    master_df = pd.concat(dataframes)
+
+    # columnas tecnicas al final
+    columns = master_df.columns
+    no_native_columns = ['_source_file', '_at']
+    native_columns = [c for c in columns if c not in no_native_columns]
+    
+    master_df = master_df[native_columns + no_native_columns]
+
+    print(f'concatenados los {len(dataframes)} archivos')
+
+    master_df.to_csv(master_csv, index=False)
+
+    print(f'{master_csv.name} guardado en {master_csv.parent}')
+
+# ejecutable
+# python automation/manage_files.py --src automation/data/test_data  --pattern "*.csv" merge --out automation/out_dst_prueba
+
 
 def cmd_ls(args):
     for f in args.src.iterdir():
@@ -130,7 +174,7 @@ def main():
     elif args.cmd == "move":
         cmd_move(args)
     elif args.cmd == "merge":
-        ...
+        cmd_merge(args)
     elif args.cmd == 'ls':
         cmd_ls(args)
 

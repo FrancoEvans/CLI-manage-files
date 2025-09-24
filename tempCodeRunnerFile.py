@@ -1,0 +1,1 @@
+python automation/manage_files.py --src automation/data/test-data  --pattern "*.csv" merge --out automation/out_dst_prueba
