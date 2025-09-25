@@ -16,7 +16,7 @@ def build_parser():
     p.add_argument('--log-file', type=Path)
 
     # SUB PARSERS
-    sub = p.add_subparsers(dest='cmd', required=True)
+    sub = p.add_subparsers(dest='command', required=True)
 
     # SUB PARSER RENAME
     sp = sub.add_parser("rename")
@@ -58,6 +58,30 @@ def unique_name(dst_dir: Path, filename: str):
             return new_filename
         else:
             i+=1
+
+# 2025-09-24 21:14:52 [INFO] move: Movido ventas.csv -> archive/2025-09/ventas.csv
+# 2025-09-24 21:14:52 [WARNING] rename: Nombre duplicado, creado ventas-1.csv
+def log(args, flag_index: int, message: str):
+
+    log_file = args.log_file
+
+    if log_file is None:
+        return
+    
+    elif not log_file.exists():
+        print(f'No existe la ruta {log_file} -> Creada')
+        log_file.parent.mkdir(parents=True, exist_ok=True)
+
+    # creacion del mensaje log
+    flags = ['INFO', 'ERROR', 'WARINING']
+    command = args.command
+    date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+    log_msg = f'{date} [{flags[flag_index]}] {command}: {message}'
+
+    with open(log_file, "a", encoding="utf-8") as f:
+        f.write(f"{log_msg}\n")
+    print(log_msg)
         
 def cmd_rename(args):
     for f in args.src.glob(args.pattern):
@@ -68,6 +92,10 @@ def cmd_rename(args):
             )
             new = f.with_name(unique_name(args.src, new_name))
             f.rename(new)
+            log(args, 0, f'Archivo renombrado {f.name} -> {new_name}')
+
+# ejecutable
+# python automation/manage_files.py --src automation/data/test_data  --pattern "ventas.csv" --log-file automation/log/register.log rename --rule '{stem}_2025{suffix}'
 
 def cmd_move(args):
     # obtener fecha + crear carpeta destino + mover archivo.
@@ -79,12 +107,14 @@ def cmd_move(args):
     saltados = 0
 
     if dst_dir.is_relative_to(src_path):
+        log(args, 1, "La carpeta destino no puede estar dentro de source")
         raise ValueError("dst no puede estar dentro de src")
         
     for f in sorted(src_path.glob(args.pattern)):
         if f.is_file():
             try:
                 st = f.stat()
+
                 match args.by:
                     case 'mtime':
                         dt = datetime.fromtimestamp(st.st_mtime)
@@ -92,28 +122,37 @@ def cmd_move(args):
                         dt = datetime.fromtimestamp(st.st_ctime)
                     case _:
                         dt = datetime.fromtimestamp(st.st_mtime)
+
                 subdir = dt.strftime("%Y-%m")
                 final_dir = dst_dir / subdir
                 final_dir.mkdir(parents=True, exist_ok=True)
                 filename = unique_name(final_dir, f.name)
                 dst_path = final_dir / filename
+
+                if filename != f.name:
+                        log(args, 2, f'Nombre duplicado ({f.name}), creado {filename}')
+
                 if not f.resolve() == dst_path.resolve():
                     f.rename(dst_path)
                     movidos += 1
+                    log(args, 0, f'Movido {f.name} -> {dst_path}')
+
                 else:
                     saltados += 1
+                    log(args, 2, f'Archivo saltado {f.name}')
         
             except Exception as e:
                 print(f'error: {str(e)}')
                 errores += 1
+                log(args, 1, f'Error moviendo {f.name}')
         else:
             saltados += 1
     print(f'movidos={movidos}, saltados={saltados} errores={errores}')
 
-
+# ejecutable
+# python automation/manage_files.py --src automation/data/inbound  --pattern "*.csv" move --rule '{stem}_2024{suffix}'
 
     
-
 def cmd_merge(args):
     # abrir CSVs + concatenar + agregar columna + guardar master.
     src_path = args.src.resolve()
@@ -148,7 +187,7 @@ def cmd_merge(args):
     columns = master_df.columns
     no_native_columns = ['_source_file', '_at']
     native_columns = [c for c in columns if c not in no_native_columns]
-    
+
     master_df = master_df[native_columns + no_native_columns]
 
     print(f'concatenados los {len(dataframes)} archivos')
@@ -169,13 +208,13 @@ def main():
     parser = build_parser()
     args = parser.parse_args()
 
-    if args.cmd == "rename":
+    if args.command == "rename":
         cmd_rename(args)
-    elif args.cmd == "move":
+    elif args.command == "move":
         cmd_move(args)
-    elif args.cmd == "merge":
+    elif args.command == "merge":
         cmd_merge(args)
-    elif args.cmd == 'ls':
+    elif args.command == 'ls':
         cmd_ls(args)
 
 if __name__ == '__main__':
