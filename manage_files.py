@@ -37,6 +37,7 @@ def build_parser():
     return p
 
 
+# FUNCIONES
 
 def normalize_name(name):
     translates = str.maketrans(' -áéíóúÁÉÍÓÚ', '__aeiouaeiou')
@@ -64,34 +65,39 @@ def unique_name(dst_dir: Path, filename: str):
 def log(args, flag_index: int, message: str):
 
     log_file = args.log_file
+    dry_run = args.dry_run
 
     if log_file is None:
         return
     
-    elif not log_file.exists():
+    if not log_file.parent.exists():
         print(f'No existe la ruta {log_file} -> Creada')
         log_file.parent.mkdir(parents=True, exist_ok=True)
 
     # creacion del mensaje log
-    flags = ['INFO', 'ERROR', 'WARINING']
+    flags = ['INFO', 'ERROR', 'WARNING']
     command = args.command
     date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-    log_msg = f'{date} [{flags[flag_index]}] {command}: {message}'
+    log_msg = f'{date} [{flags[flag_index]}] {command}: {message}' if not dry_run else f'{date} [{flags[flag_index]}] [DRY] {command}: {message}'
 
     with open(log_file, "a", encoding="utf-8") as f:
         f.write(f"{log_msg}\n")
     print(log_msg)
-        
+
+
+# COMANDOS 
+
 def cmd_rename(args):
     for f in args.src.glob(args.pattern):
         if f.is_file():
-            n = normalize_name(f.name)
             new_name = args.rule.format(
-                name = n.name, stem = n.stem, suffix = n.suffix
+                name = f.name, stem = f.stem, suffix = f.suffix
             )
+            new_name = normalize_name(new_name)
             new = f.with_name(unique_name(args.src, new_name))
-            f.rename(new)
+            if not args.dry_run:
+                f.rename(new)
             log(args, 0, f'Archivo renombrado {f.name} -> {new_name}')
 
 # ejecutable
@@ -133,7 +139,8 @@ def cmd_move(args):
                         log(args, 2, f'Nombre duplicado ({f.name}), creado {filename}')
 
                 if not f.resolve() == dst_path.resolve():
-                    f.rename(dst_path)
+                    if not args.dry_run: 
+                        f.rename(dst_path)
                     movidos += 1
                     log(args, 0, f'Movido {f.name} -> {dst_path}')
 
@@ -160,10 +167,17 @@ def cmd_merge(args):
     date = datetime.now()
     master_csv = out_dir / f'master_{date.strftime("%Y-%m-%d")}.csv'
 
+    if master_csv.exists():
+        backup = master_csv.with_suffix(master_csv.suffix + ".bak")
+        if not args.dry_run:
+            master_csv.rename(backup)
+        log(args, 2, f'Master ya existía, movido a {backup.name}')
+
     dataframes = []
 
     if not src_path.exists():
         print(f'no se encontro la ruta: {src_path}')
+        log(args, 1, f'No se encontro la ruta {src_path}')
         return
 
     for i, f in enumerate(sorted(src_path.glob(args.pattern))):
@@ -191,8 +205,9 @@ def cmd_merge(args):
     master_df = master_df[native_columns + no_native_columns]
 
     print(f'concatenados los {len(dataframes)} archivos')
-
-    master_df.to_csv(master_csv, index=False)
+    
+    if not args.dry_run:
+        master_df.to_csv(master_csv, index=False)
 
     print(f'{master_csv.name} guardado en {master_csv.parent}')
 
