@@ -1,6 +1,6 @@
 from pathlib import Path
 
-inbound = Path("automation/data/inbound")
+inbound = Path("data/test_data")
 inbound.mkdir(parents=True, exist_ok=True)
 
 filenames = [
